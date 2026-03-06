@@ -1,10 +1,11 @@
 import { useMemo } from "react";
-import type { CsvColumn, CurveConfig } from "../types";
+import type { CsvColumn, CurveConfig, ReductionResult } from "../types";
 import { extractCurvePoints } from "../utils/curveData";
 
 interface DataPreviewProps {
   columns: CsvColumn[];
   curves: CurveConfig[];
+  reductionResult: ReductionResult | null;
   onCurveChange: (curveId: string, patch: Partial<CurveConfig>) => void;
   onSwapAxes: (curveId: string) => void;
 }
@@ -53,6 +54,7 @@ function getPreviewRows(
 export default function DataPreview({
   columns,
   curves,
+  reductionResult,
   onCurveChange,
   onSwapAxes,
 }: DataPreviewProps) {
@@ -65,10 +67,15 @@ export default function DataPreview({
     [columns],
   );
 
+  const reducedCurveById = useMemo(
+    () => new Map(reductionResult?.curves.map((curve) => [curve.id, curve]) ?? []),
+    [reductionResult],
+  );
+
   if (curves.length === 0) {
     return (
       <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm">
-        No hay pares de columnas disponibles.
+        No column pairs are available.
       </div>
     );
   }
@@ -80,6 +87,7 @@ export default function DataPreview({
         const previewRows = getPreviewRows(columns, curve.xColumnIndex, curve.yColumnIndex, 5);
         const xName = columns[curve.xColumnIndex]?.name ?? "N/A";
         const yName = columns[curve.yColumnIndex]?.name ?? "N/A";
+        const reducedStats = reducedCurveById.get(curve.id);
 
         return (
           <section
@@ -96,13 +104,13 @@ export default function DataPreview({
                     onCurveChange(curve.id, { enabled: event.target.checked })
                   }
                 />
-                Incluir
+                Include
               </label>
             </div>
 
             <div className="mb-3 grid gap-3 md:grid-cols-2">
               <label className="flex flex-col gap-1 text-sm text-slate-700">
-                Columna X
+                X column
                 <select
                   className="rounded-md border border-slate-300 p-2"
                   value={curve.xColumnIndex}
@@ -121,7 +129,7 @@ export default function DataPreview({
               </label>
 
               <label className="flex flex-col gap-1 text-sm text-slate-700">
-                Columna Y
+                Y column
                 <select
                   className="rounded-md border border-slate-300 p-2"
                   value={curve.yColumnIndex}
@@ -155,13 +163,22 @@ export default function DataPreview({
                 className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-800 hover:bg-slate-100"
                 onClick={() => onSwapAxes(curve.id)}
               >
-                Intercambiar X/Y
+                Swap X/Y
               </button>
 
               <span className="text-sm text-slate-600">
-                Total puntos válidos: <strong>{points.x.length}</strong>
+                Valid points total: <strong>{points.x.length}</strong>
               </span>
             </div>
+
+            {reducedStats && (
+              <p className="mb-3 text-sm text-emerald-700">
+                Reduction total error (L1):{" "}
+                <strong>{reducedStats.totalAbsoluteError.toFixed(6)}</strong>
+                {" · "}
+                RMSE: <strong>{reducedStats.rmse.toFixed(6)}</strong>
+              </p>
+            )}
 
             <div className="overflow-x-auto">
               <table className="min-w-full border-collapse text-sm">
@@ -178,7 +195,7 @@ export default function DataPreview({
                         colSpan={2}
                         className="border border-slate-200 px-2 py-2 text-slate-500"
                       >
-                        Este par no contiene datos numéricos válidos.
+                        This pair has no valid numeric data.
                       </td>
                     </tr>
                   ) : (

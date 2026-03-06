@@ -46,6 +46,8 @@ export interface ReductionCurveResult {
   name: string;
   color: string;
   y: number[];
+  totalAbsoluteError: number;
+  rmse: number;
 }
 
 export interface ReductionResult {

@@ -154,36 +154,40 @@ function linearInterpolate(
   return y0 + ratio * (y1 - y0);
 }
 
-function interpolateCurveToGrid(curve: CurveXY, gridX: number[]): number[] {
-  if (curve.x.length === 0) {
-    return gridX.map(() => NaN);
+function interpolateSeriesAtTargets(
+  sourceX: number[],
+  sourceY: number[],
+  targetX: number[],
+): number[] {
+  if (sourceX.length === 0) {
+    return targetX.map(() => NaN);
   }
 
-  if (curve.x.length === 1) {
-    return gridX.map(() => curve.y[0]);
+  if (sourceX.length === 1) {
+    return targetX.map(() => sourceY[0]);
   }
 
   const output: number[] = [];
   let segmentIndex = 0;
-  const lastCurveIndex = curve.x.length - 1;
+  const lastCurveIndex = sourceX.length - 1;
 
-  for (const xTarget of gridX) {
-    while (segmentIndex < lastCurveIndex - 1 && curve.x[segmentIndex + 1] < xTarget) {
+  for (const xTarget of targetX) {
+    while (segmentIndex < lastCurveIndex - 1 && sourceX[segmentIndex + 1] < xTarget) {
       segmentIndex += 1;
     }
 
-    if (xTarget <= curve.x[0]) {
-      output.push(linearInterpolate(curve.x[0], curve.y[0], curve.x[1], curve.y[1], xTarget));
+    if (xTarget <= sourceX[0]) {
+      output.push(linearInterpolate(sourceX[0], sourceY[0], sourceX[1], sourceY[1], xTarget));
       continue;
     }
 
-    if (xTarget >= curve.x[lastCurveIndex]) {
+    if (xTarget >= sourceX[lastCurveIndex]) {
       output.push(
         linearInterpolate(
-          curve.x[lastCurveIndex - 1],
-          curve.y[lastCurveIndex - 1],
-          curve.x[lastCurveIndex],
-          curve.y[lastCurveIndex],
+          sourceX[lastCurveIndex - 1],
+          sourceY[lastCurveIndex - 1],
+          sourceX[lastCurveIndex],
+          sourceY[lastCurveIndex],
           xTarget,
         ),
       );
@@ -194,16 +198,20 @@ function interpolateCurveToGrid(curve: CurveXY, gridX: number[]): number[] {
     const rightIndex = leftIndex + 1;
     output.push(
       linearInterpolate(
-        curve.x[leftIndex],
-        curve.y[leftIndex],
-        curve.x[rightIndex],
-        curve.y[rightIndex],
+        sourceX[leftIndex],
+        sourceY[leftIndex],
+        sourceX[rightIndex],
+        sourceY[rightIndex],
         xTarget,
       ),
     );
   }
 
   return output;
+}
+
+function interpolateCurveToGrid(curve: CurveXY, gridX: number[]): number[] {
+  return interpolateSeriesAtTargets(curve.x, curve.y, gridX);
 }
 
 function triangleArea(
@@ -319,29 +327,44 @@ function runReduction(request: ReductionRequest): ReductionResult {
     .filter((curve) => curve.x.length > 0 && curve.y.length > 0);
 
   if (cleanCurves.length === 0) {
-    throw new Error("No hay curvas válidas para procesar.");
+    throw new Error("No valid curves available for processing.");
   }
 
   const sharedX = buildUnionX(cleanCurves);
   if (sharedX.length === 0) {
-    throw new Error("No se pudo construir una malla común de X.");
+    throw new Error("Unable to build a shared X grid.");
   }
 
   const interpolatedY = cleanCurves.map((curve) => interpolateCurveToGrid(curve, sharedX));
 
   const targetPoints = Math.floor(request.targetPoints);
   if (!Number.isFinite(targetPoints) || targetPoints < 2) {
-    throw new Error("El número final de puntos debe ser 2 o mayor.");
+    throw new Error("Final point count must be 2 or greater.");
   }
 
   const keptIndices = reduceSharedX(sharedX, interpolatedY, targetPoints);
   const reducedX = keptIndices.map((index) => sharedX[index]);
-  const reducedCurves = cleanCurves.map((curve, curveIndex) => ({
-    id: curve.id,
-    name: curve.name,
-    color: curve.color,
-    y: keptIndices.map((index) => interpolatedY[curveIndex][index]),
-  }));
+  const reducedCurves = cleanCurves.map((curve, curveIndex) => {
+    const reducedY = keptIndices.map((index) => interpolatedY[curveIndex][index]);
+    const reconstructedDenseY = interpolateSeriesAtTargets(reducedX, reducedY, sharedX);
+
+    let totalAbsoluteError = 0;
+    let totalSquaredError = 0;
+    for (let index = 0; index < sharedX.length; index += 1) {
+      const diff = interpolatedY[curveIndex][index] - reconstructedDenseY[index];
+      totalAbsoluteError += Math.abs(diff);
+      totalSquaredError += diff * diff;
+    }
+
+    return {
+      id: curve.id,
+      name: curve.name,
+      color: curve.color,
+      y: reducedY,
+      totalAbsoluteError,
+      rmse: Math.sqrt(totalSquaredError / sharedX.length),
+    };
+  });
 
   return {
     sharedX: reducedX,
@@ -364,7 +387,8 @@ workerContext.onmessage = (event: MessageEvent<ReductionRequest>) => {
   } catch (error) {
     const message: WorkerErrorMessage = {
       ok: false,
-      error: error instanceof Error ? error.message : "Error desconocido al reducir los datos.",
+      error:
+        error instanceof Error ? error.message : "Unknown error while reducing the input curves.",
     };
     workerContext.postMessage(message);
   }

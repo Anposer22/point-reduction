@@ -12,7 +12,7 @@ function formatNumber(value: number): string {
 }
 
 export function buildReducedCsv(result: ReductionResult): string {
-  const headers = ["X_Comun", ...result.curves.map((curve) => sanitizeHeader(curve.name))];
+  const headers = ["X_Common", ...result.curves.map((curve) => sanitizeHeader(curve.name))];
   const rows: string[] = [headers.join(";")];
 
   for (let index = 0; index < result.sharedX.length; index += 1) {

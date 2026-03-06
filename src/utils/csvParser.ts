@@ -127,7 +127,7 @@ function createColumns(
 
 export function parseCsvContent(rawCsv: string): ParsedCsv {
   if (!rawCsv.trim()) {
-    throw new Error("El archivo CSV está vacío.");
+    throw new Error("The CSV file is empty.");
   }
 
   const delimiter = detectDelimiter(rawCsv);
@@ -138,18 +138,18 @@ export function parseCsvContent(rawCsv: string): ParsedCsv {
 
   if (parseResult.errors.length > 0) {
     const firstError = parseResult.errors[0];
-    throw new Error(`Error al leer CSV: ${firstError.message}`);
+    throw new Error(`CSV parsing error: ${firstError.message}`);
   }
 
   const rows = parseResult.data.filter((row) => row.some((cell) => cell.trim().length > 0));
   if (rows.length === 0) {
-    throw new Error("No se encontraron filas útiles en el CSV.");
+    throw new Error("No usable data rows were found in the CSV.");
   }
 
   const withHeader = hasLikelyHeader(rows);
   const columns = createColumns(rows, delimiter, withHeader);
   if (columns.length === 0) {
-    throw new Error("No se pudieron detectar columnas en el CSV.");
+    throw new Error("No columns could be detected in the CSV.");
   }
 
   return {

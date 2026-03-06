@@ -48,7 +48,7 @@ export default function Chart({ columns, curves, reductionResult }: ChartProps) 
       lines.push({
         type: "scatter",
         mode: "lines+markers",
-        name: `${curve.label} (reducida)`,
+        name: `${curve.label} (reduced)`,
         x: reductionResult.sharedX,
         y: reduced.y,
         line: {
@@ -83,8 +83,7 @@ export default function Chart({ columns, curves, reductionResult }: ChartProps) 
   if (traces.length === 0) {
     return (
       <div className="rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-sm">
-        Carga un CSV y habilita al menos un par con datos numéricos válidos para visualizar el
-        gráfico.
+        Upload a CSV and enable at least one pair with valid numeric data to display the chart.
       </div>
     );
   }

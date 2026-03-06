@@ -27,7 +27,7 @@ function createDefaultCurves(columnCount: number): CurveConfig[] {
   const pairCount = Math.floor(columnCount / 2);
   return Array.from({ length: pairCount }, (_, index) => ({
     id: `curve-${index + 1}`,
-    label: `Par ${index + 1}`,
+    label: `Pair ${index + 1}`,
     xColumnIndex: index * 2,
     yColumnIndex: index * 2 + 1,
     color: DEFAULT_COLORS[index % DEFAULT_COLORS.length],
@@ -38,12 +38,13 @@ function createDefaultCurves(columnCount: number): CurveConfig[] {
 function getBaseName(fileName: string): string {
   const trimmed = fileName.trim();
   if (!trimmed) {
-    return "resultados";
+    return "results";
   }
   return trimmed.replace(/\.[^/.]+$/, "");
 }
 
 export default function App() {
+  const fileInputId = "csv-file-input";
   const workerRef = useRef<Worker | null>(null);
 
   useEffect(
@@ -101,7 +102,7 @@ export default function App() {
       };
 
       worker.onerror = () => {
-        reject(new Error("Error inesperado en el procesamiento de datos."));
+        reject(new Error("Unexpected error while processing the data."));
       };
 
       worker.postMessage(payload);
@@ -122,12 +123,12 @@ export default function App() {
       const rawText = await file.text();
       const parsed = parseCsvContent(rawText);
       if (parsed.columns.length < 2) {
-        throw new Error("El CSV debe tener al menos dos columnas para crear pares X/Y.");
+        throw new Error("The CSV must contain at least two columns to build X/Y pairs.");
       }
 
       const curves = createDefaultCurves(parsed.columns.length);
       if (curves.length === 0) {
-        throw new Error("No se detectaron pares completos de columnas.");
+        throw new Error("No complete column pairs were detected.");
       }
 
       setParsedCsv(parsed);
@@ -139,7 +140,7 @@ export default function App() {
       setParsedCsv(null);
       setCurveConfigs([]);
       setIgnoredColumnName(null);
-      setErrorMessage(error instanceof Error ? error.message : "No se pudo procesar el CSV.");
+      setErrorMessage(error instanceof Error ? error.message : "The CSV could not be processed.");
     }
   };
 
@@ -168,18 +169,18 @@ export default function App() {
 
   const handleRun = async () => {
     if (!parsedCsv) {
-      setErrorMessage("Primero carga un archivo CSV.");
+      setErrorMessage("Please upload a CSV file first.");
       return;
     }
 
     const target = Math.floor(targetPoints);
     if (!Number.isFinite(target) || target < 2) {
-      setErrorMessage("El número de puntos finales debe ser 2 o mayor.");
+      setErrorMessage("The final point count must be 2 or greater.");
       return;
     }
 
     if (selectedCurvesInput.length === 0) {
-      setErrorMessage("No hay curvas habilitadas con datos numéricos válidos.");
+      setErrorMessage("No enabled curves contain valid numeric data.");
       return;
     }
 
@@ -194,7 +195,7 @@ export default function App() {
       setResult(reduced);
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "No fue posible completar la reducción.",
+        error instanceof Error ? error.message : "The reduction process could not be completed.",
       );
     } finally {
       setIsRunning(false);
@@ -217,25 +218,37 @@ export default function App() {
         <header className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <h1 className="text-2xl font-bold">Point Reduction Web Application</h1>
           <p className="mt-2 text-sm text-slate-600">
-            Sube un CSV (`,` o `;`, con o sin cabeceras), revisa las curvas por pares, ejecuta
-            interpolación + reducción y descarga el resultado final en CSV separado por `;`.
+            Upload a CSV (`,` or `;`, with or without headers), review pair-based curves, run
+            interpolation + reduction, and download the final CSV using `;` as separator.
           </p>
         </header>
 
         <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <div className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto] md:items-end">
-            <label className="flex flex-col gap-1 text-sm text-slate-700">
-              Archivo CSV
-              <input
-                type="file"
-                accept=".csv,text/csv"
-                onChange={handleFileUpload}
-                className="rounded-md border border-slate-300 p-2"
-              />
-            </label>
+            <div className="flex flex-col gap-1 text-sm text-slate-700">
+              <span>CSV file</span>
+              <div className="flex flex-wrap items-center gap-3">
+                <label
+                  htmlFor={fileInputId}
+                  className="inline-flex cursor-pointer items-center rounded-md bg-slate-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700"
+                >
+                  Choose File
+                </label>
+                <input
+                  id={fileInputId}
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <span className="max-w-[280px] truncate text-xs text-slate-500">
+                  {fileName || "No file selected"}
+                </span>
+              </div>
+            </div>
 
             <label className="flex flex-col gap-1 text-sm text-slate-700">
-              Puntos finales (N)
+              Final points (N)
               <input
                 type="number"
                 min={2}
@@ -252,47 +265,48 @@ export default function App() {
               disabled={!parsedCsv || isRunning}
               className="rounded-md bg-blue-600 px-5 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              {isRunning ? "Procesando..." : "RUN"}
+              {isRunning ? "Processing..." : "RUN"}
             </button>
 
             <button
               type="button"
               onClick={handleDownload}
               disabled={!result}
-              className="rounded-md border border-slate-300 px-5 py-2 text-sm font-semibold text-slate-800 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+              className="rounded-md bg-emerald-600 px-5 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              Descargar CSV (;)
+              Download CSV (;)
             </button>
           </div>
 
           {parsedCsv && (
             <div className="mt-4 flex flex-wrap gap-3 text-sm text-slate-700">
               <span>
-                Delimitador detectado: <strong>{parsedCsv.delimiter}</strong>
+                Detected delimiter: <strong>{parsedCsv.delimiter}</strong>
               </span>
               <span>
-                Cabeceras detectadas: <strong>{parsedCsv.hasHeader ? "Sí" : "No"}</strong>
+                Headers detected: <strong>{parsedCsv.hasHeader ? "Yes" : "No"}</strong>
               </span>
               <span>
-                Filas de datos: <strong>{parsedCsv.rowCount}</strong>
+                Data rows: <strong>{parsedCsv.rowCount}</strong>
               </span>
               <span>
-                Curvas habilitadas para RUN: <strong>{selectedCurvesInput.length}</strong>
+                Curves enabled for RUN: <strong>{selectedCurvesInput.length}</strong>
               </span>
             </div>
           )}
 
           {ignoredColumnName && (
             <p className="mt-3 text-sm text-amber-700">
-              Se detectó una columna sin pareja y no se creó curva por defecto para ella:{" "}
+              An unpaired column was detected, so no default curve was created for it:{" "}
               <strong>{ignoredColumnName}</strong>.
             </p>
           )}
 
           {result && (
             <p className="mt-3 text-sm text-emerald-700">
-              RUN completado: malla común inicial de <strong>{result.originalSharedPointCount}</strong>{" "}
-              puntos X, reducida a <strong>{result.reducedPointCount}</strong> puntos.
+              RUN completed: shared X grid started with{" "}
+              <strong>{result.originalSharedPointCount}</strong> points and was reduced to{" "}
+              <strong>{result.reducedPointCount}</strong> points.
             </p>
           )}
 
@@ -305,6 +319,7 @@ export default function App() {
           <DataPreview
             columns={parsedCsv.columns}
             curves={curveConfigs}
+            reductionResult={result}
             onCurveChange={updateCurve}
             onSwapAxes={swapCurveAxes}
           />
@@ -313,6 +328,10 @@ export default function App() {
         <section>
           <Chart columns={parsedCsv?.columns ?? []} curves={curveConfigs} reductionResult={result} />
         </section>
+
+        <footer className="py-2 text-center text-xs text-slate-500">
+          Made by Antonio Poveda - FEE
+        </footer>
       </div>
     </main>
   );
